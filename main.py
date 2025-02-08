@@ -59,10 +59,6 @@ def get_site_contact_info(
                         f"[{company}] Found {len(total_emails)} emails and {len(total_phone)} phone numbers"
                     )
 
-                    # If navigated to path instead of website add base url
-                    if site.startswith("/"):
-                        site = start_url + site
-
                     # If navigated to different website, skip
                     if not start_url in site:
                         continue
@@ -79,8 +75,18 @@ def get_site_contact_info(
                         # For all links on the page
                         for link in links:
                             href = link.get_attribute("href")
+
+                            # If absolute path
                             if href and href.startswith("http"):
                                 new_sites.append(href)
+                            # If relative path
+                            else:
+                                new_site = site + href
+
+                                # Remove double slashes
+                                new_site = new_site.replace("//", "/")
+
+                                new_sites.append(new_site)
 
                         # Find all emails
                         text = page.inner_text("body")
