@@ -29,28 +29,32 @@ def google_search(page, product):
 
     # Search first 5 pages
     while page_count < 5:
-        page_search_url = f"{search_url}&first={page_count * 10}"
+        try:
+            page_search_url = f"{search_url}&first={page_count * 10}"
 
-        page.goto(page_search_url)
-        page.wait_for_load_state("networkidle")
+            page.goto(page_search_url)
+            page.wait_for_load_state("networkidle")
 
-        # Get all search results
-        websites = page.query_selector_all("div.tpmeta > div.b_attribution")
+            # Get all search results
+            websites = page.query_selector_all("div.tpmeta > div.b_attribution")
 
-        for website in websites:
-            website_text = website.inner_text()
+            for website in websites:
+                website_text = website.inner_text()
 
-            # Get all test before first white space
-            website_text = website_text.split(" ")[0]
+                # Get all test before first white space
+                website_text = website_text.split(" ")[0]
 
-            # Parse URL to find origin
-            parsed_url = urlparse(website_text)
+                # Parse URL to find origin
+                parsed_url = urlparse(website_text)
 
-            # See if domain is .nl
-            if parsed_url.netloc.endswith(".nl"):
-                result.append(website_text)
+                # See if domain is .nl
+                if parsed_url.netloc.endswith(".nl"):
+                    result.append(website_text)
 
-        page_count += 1
+            page_count += 1
+        except Exception as e:
+            print(f"Error: {e}")
+            continue
 
     return list(set(result))
 
