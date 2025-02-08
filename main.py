@@ -1,11 +1,9 @@
-import sys
 import re
 import pandas as pd
 from playwright.sync_api import sync_playwright
 
 EMAIL_REGEX = r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+"
 PHONE_REGEX = r"(^\+[0-9]{2}|^\+[0-9]{2}\(0\)|^\(\+[0-9]{2}\)\(0\)|^00[0-9]{2}|^0)([0-9]{9}$|[0-9\-\s]{10}$)"
-WHITE_SPACE_FILL = "                                       "
 
 
 def get_site_contact_info(
@@ -40,6 +38,13 @@ def get_site_contact_info(
 
                 # For all pages at depth
                 for site in sites_to_scrape:
+                    print(
+                        f"[{company}] Scraping {site} at depth {depth} ({index} of {len(leads_df)})"
+                    )
+                    print(
+                        f"[{company}] Found {len(total_emails)} emails and {len(total_phone)} phone numbers"
+                    )
+
                     # If navigated to path instead of website add base url
                     if site.startswith("/"):
                         site = start_url + site
