@@ -76,8 +76,8 @@ with sync_playwright() as p:
     )
     page = context.new_page()
 
-    for product in products:
-        print(f"Searching for {product}...")
+    for index, product in enumerate(products):
+        print(f"Searching for {product}... ({index + 1} of {len(products)})")
 
         # Perform Google search
         links = google_search(page, product)
