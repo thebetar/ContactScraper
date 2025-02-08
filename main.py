@@ -1,9 +1,20 @@
 import re
+from urllib.parse import urlparse
 import pandas as pd
 from playwright.sync_api import sync_playwright
 
 EMAIL_REGEX = r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+"
 PHONE_REGEX = r"(^\+[0-9]{2}|^\+[0-9]{2}\(0\)|^\(\+[0-9]{2}\)\(0\)|^00[0-9]{2}|^0)([0-9]{9}$|[0-9\-\s]{10}$)"
+
+
+def check_break_condition(total_emails, total_phone, base_url):
+    parsed_url = urlparse(base_url)
+    domain = parsed_url.netloc
+
+    # Filter by emails with domain name
+    domain_emails = [email for email in total_emails if domain in email]
+
+    return len(domain_emails) > 20 and len(total_phone) > 20
 
 
 def get_site_contact_info(
@@ -90,10 +101,18 @@ def get_site_contact_info(
                                 for phone in phone_numbers
                             ]
                         )
+
+                        # If total emails and phone numbers are more than 100, stop scraping
+                        if check_break_condition(total_emails, total_phone, start_url):
+                            break
                     except Exception as e:
                         continue
 
-                sites_to_scrape = new_sites
+                sites_to_scrape = list(set(new_sites))
+
+                # If total emails and phone numbers are more than 100, stop scraping
+                if check_break_condition(total_emails, total_phone, start_url):
+                    break
 
                 depth += 1
 
