@@ -4,7 +4,7 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 
 EMAIL_REGEX = r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+"
-PHONE_REGEX = r"(^\+[0-9]{2}|^\+[0-9]{2}\(0\)|^\(\+[0-9]{2}\)\(0\)|^00[0-9]{2}|^0)([0-9]{9}$|[0-9\-\s]{10}$)"
+PHONE_REGEX = r"(?:\+31\s?|0)(6\d{8}|\d{1,2}[-\s]?\d{6,7})"
 
 CONTACT_SUBSTRINGS = [
     "contact",
@@ -81,13 +81,6 @@ def get_site_contact_info(
                 for site in sites_to_scrape:
                     scrape_history.append(site)
 
-                    print(
-                        f"[{company}] Scraping {site} at depth {depth} ({index + 1} of {len(leads_df)})"
-                    )
-                    print(
-                        f"[{company}] Found {len(total_emails)} emails and {len(total_phone)} phone numbers"
-                    )
-
                     # If navigated to different website, skip
                     if not start_url in site:
                         continue
@@ -104,6 +97,13 @@ def get_site_contact_info(
                         # If URL does not contain any contact substrings, skip
                         if not any([substr in path for substr in CONTACT_SUBSTRINGS]):
                             continue
+
+                    print(
+                        f"[{company}] Scraping {site} at depth {depth} ({index + 1} of {len(leads_df)})"
+                    )
+                    print(
+                        f"[{company}] Found {len(total_emails)} emails and {len(total_phone)} phone numbers"
+                    )
 
                     try:
                         page.goto(site)
