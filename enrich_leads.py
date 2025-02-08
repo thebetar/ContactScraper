@@ -201,7 +201,7 @@ def get_site_contact_info(
 
 if __name__ == "__main__":
     website_df = pd.read_csv("data/lead-list.csv")
-    website_df = website_df[:50]
+    website_df = website_df
 
     # Get contact info
     email_result_list, phone_result_list = get_site_contact_info(
