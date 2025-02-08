@@ -1,3 +1,5 @@
 .venv
 
 data/*
+!data/email-log.csv
+!data/phone-log.csv

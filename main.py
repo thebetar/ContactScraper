@@ -9,6 +9,9 @@ PHONE_REGEX = r"(^\+[0-9]{2}|^\+[0-9]{2}\(0\)|^\(\+[0-9]{2}\)\(0\)|^00[0-9]{2}|^
 def get_site_contact_info(
     leads_df: pd.DataFrame, website_column: str, company_column: str
 ):
+    email_log_file = open("data/email-log.csv", "a")
+    phone_log_file = open("data/phone-log.csv", "a")
+
     email_result_list = []
     phone_result_list = []
 
@@ -97,6 +100,17 @@ def get_site_contact_info(
             email_result_list.extend(total_emails)
             phone_result_list.extend(total_phone)
 
+            # Write to log file
+            for email in total_emails:
+                email_log_file.write(
+                    f"{email['company']},{email['site']},{email['email']}\n"
+                )
+
+            for phone in total_phone:
+                phone_log_file.write(
+                    f"{phone['company']},{phone['site']},{phone['phone']}\n"
+                )
+
         leads_df.apply(scrape_website, axis=1)
 
     return email_result_list, phone_result_list
@@ -104,13 +118,20 @@ def get_site_contact_info(
 
 if __name__ == "__main__":
     website_df = pd.read_csv("data/lead-list.csv")
+    website_df = website_df[:50]
 
+    # Get contact info
     email_result_list, phone_result_list = get_site_contact_info(
         leads_df=website_df, website_column="Website", company_column="Company"
     )
     email_df = pd.DataFrame(email_result_list)
     phone_df = pd.DataFrame(phone_result_list)
 
+    # Remove duplicates
+    email_df = email_df.drop_duplicates(subset=["email"])
+    phone_df = phone_df.drop_duplicates(subset=["phone"])
+
+    # Save to CSV
     email_df.to_csv("data/emails.csv", index=False)
     phone_df.to_csv("data/phones.csv", index=False)
 
