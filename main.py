@@ -6,6 +6,30 @@ from playwright.sync_api import sync_playwright
 EMAIL_REGEX = r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+"
 PHONE_REGEX = r"(^\+[0-9]{2}|^\+[0-9]{2}\(0\)|^\(\+[0-9]{2}\)\(0\)|^00[0-9]{2}|^0)([0-9]{9}$|[0-9\-\s]{10}$)"
 
+CONTACT_SUBSTRINGS = [
+    "contact",
+    "about",
+    "team",
+    "support",
+    "faq",
+    "help",
+    "getintouch",
+    "get-in-touch",
+    "klantenservice",
+    "press",
+    "terms",
+]
+
+
+def check_fast_search(total_emails, base_url, pages_scanned):
+    parsed_url = urlparse(base_url)
+    domain = parsed_url.netloc
+
+    # Filter by emails with domain name
+    domain_emails = [email for email in total_emails if domain in email]
+
+    return len(domain_emails) > 10 or pages_scanned > 20
+
 
 def check_break_condition(total_emails, total_phone, base_url):
     parsed_url = urlparse(base_url)
@@ -14,7 +38,7 @@ def check_break_condition(total_emails, total_phone, base_url):
     # Filter by emails with domain name
     domain_emails = [email for email in total_emails if domain in email]
 
-    return len(domain_emails) > 20 and len(total_phone) > 20
+    return len(domain_emails) > 20 and len(total_phone) > 5
 
 
 def get_site_contact_info(
@@ -41,6 +65,7 @@ def get_site_contact_info(
             start_url = start_url.replace("http://", "")
 
             depth = 0
+            pages_scanned = 0
 
             sites_to_scrape = [start_url]
             total_emails = []
@@ -71,9 +96,21 @@ def get_site_contact_info(
                     if not site.startswith("http"):
                         site = "https://" + site
 
+                    if check_fast_search(total_emails, start_url, pages_scanned):
+                        # Check URL more strictly to be contact page
+                        parsed_url = urlparse(site)
+                        path = parsed_url.path
+
+                        # If URL does not contain any contact substrings, skip
+                        if not any([substr in path for substr in CONTACT_SUBSTRINGS]):
+                            continue
+
                     try:
                         page.goto(site)
                         page.wait_for_load_state("networkidle")
+
+                        pages_scanned += 1
+
                         links = page.query_selector_all("a")
 
                         # For all links on the page
