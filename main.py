@@ -46,14 +46,18 @@ def get_site_contact_info(
             total_emails = []
             total_phone = []
 
+            scrape_history = []
+
             while depth < 3:
                 # Find all the links on the page
                 new_sites = []
 
                 # For all pages at depth
                 for site in sites_to_scrape:
+                    scrape_history.append(site)
+
                     print(
-                        f"[{company}] Scraping {site} at depth {depth} ({index} of {len(leads_df)})"
+                        f"[{company}] Scraping {site} at depth {depth} ({index + 1} of {len(leads_df)})"
                     )
                     print(
                         f"[{company}] Found {len(total_emails)} emails and {len(total_phone)} phone numbers"
@@ -76,15 +80,32 @@ def get_site_contact_info(
                         for link in links:
                             href = link.get_attribute("href")
 
+                            if (
+                                not href
+                                or href == "#"
+                                or href == "/"
+                                or href == "javascript:void(0)"
+                                or "mailto:" in href
+                            ):
+                                continue
+
                             # If absolute path
-                            if href and href.startswith("http"):
+                            if href.startswith("http"):
+                                if href in scrape_history:
+                                    continue
+
                                 new_sites.append(href)
                             # If relative path
                             else:
-                                new_site = site + href
+                                new_site = start_url + href
 
                                 # Remove double slashes
-                                new_site = new_site.replace("//", "/")
+                                new_site = new_site.replace("//", "/").replace(
+                                    "https:/", "https://"
+                                )
+
+                                if new_site in scrape_history:
+                                    continue
 
                                 new_sites.append(new_site)
 
