@@ -40,8 +40,8 @@ def get_shops():
 
         result = []
 
-        # Search first 5 pages
-        while page_count < 5:
+        # Search first 6 pages
+        while page_count < 6:
             try:
                 page_search_url = f"{search_url}&first={page_count * 10}"
 
@@ -105,7 +105,7 @@ def get_shops():
     products = []
 
     # Get kind of products
-    with open("producten.txt", "r") as file:
+    with open("sorted_products.txt", "r") as file:
         for line in file:
             products.append(line.strip())
 
