@@ -105,7 +105,7 @@ def get_shops():
     products = []
 
     # Get kind of products
-    with open("sorted_products.txt", "r") as file:
+    with open("products.txt", "r") as file:
         for line in file:
             products.append(line.strip())
 
