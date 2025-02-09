@@ -8,20 +8,11 @@ from playwright.sync_api import sync_playwright
 # Google search URL
 GOOGLE_SEARCH_URL = "https://www.bing.com/search"
 
-# List of technologies to search for
-TECHNOLOGIES = [
-    "Shopify",
-    "WordPress",
-    "WooCommerce",
-    "Magento",
-    "Lightspeed",
-]
-
 date_str = datetime.datetime.today().strftime("%Y-%m-%d")
 data_file_str = f"data/leads_{date_str}.csv"
 
 with open(data_file_str, "w") as data_file:
-    data_file.write("product,website\n")
+    data_file.write("product,company,website\n")
 
 
 # Function to perform Google search
@@ -33,6 +24,7 @@ def google_search(page, product):
     page_count = 0
 
     result = []
+    website_url_history = []
 
     # Search first 5 pages
     while page_count < 5:
@@ -43,36 +35,49 @@ def google_search(page, product):
             page.wait_for_load_state("networkidle")
 
             # Get all search results
-            websites = page.query_selector_all("div.tpmeta > div.b_attribution")
+            websites = page.query_selector_all("a.tilk > div.tptxt")
 
             for website in websites:
-                website_text = website.inner_text()
+                website_url = website.query_selector("div.tpmeta > div.b_attribution")
+                website_name = website.query_selector("div.tptt")
+
+                website_url_text = website_url.inner_text()
+                website_name_text = website_name.inner_text()
 
                 # Get all test before first white space
-                website_text = website_text.split(" ")[0]
+                website_url_text = website_url_text.split(" ")[0]
 
                 # Parse URL to find origin
-                parsed_url = urlparse(website_text)
+                parsed_url = urlparse(website_url_text)
 
                 if not parsed_url.netloc.endswith(
                     ".nl"
                 ) and not parsed_url.netloc.endswith(".com"):
                     continue
 
-                if website_text in result:
+                if website_url_text in website_url_history:
                     continue
 
-                result.append(website_text)
+                website_url_history.append(website_url_text)
+                result.append(
+                    {
+                        "product": product,
+                        "company": website_name_text,
+                        "website": website_url_text,
+                    }
+                )
 
                 with open(data_file_str, "a") as data_file:
-                    data_file.write(f"{product},{website_text}\n")
+                    data_file.write(
+                        f"{product},{website_name_text},{website_url_text}\n"
+                    )
 
             page_count += 1
         except Exception as e:
             print(f"Error: {e}")
             continue
 
-    return list(set(result))
+    return result
 
 
 products = []

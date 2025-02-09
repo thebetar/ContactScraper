@@ -5,9 +5,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 EMAIL_REGEX = r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+"
-PHONE_REGEX = (
-    r"(?:\+31|0031|0)(6(?:[-.\s]?\d{2}){4}|[1-9]\d{1,2}(?:[-.\s]?\d{2,3}){2,3})"
-)
+PHONE_REGEX = r"^((\+|00(\s|\s?\-\s?)?)31(\s|\s?\-\s?)?(\(0\)[\-\s]?)?|0)[1-9]((\s|\s?\-\s?)?[0-9])((\s|\s?-\s?)?[0-9])((\s|\s?-\s?)?[0-9])\s?[0-9]\s?[0-9]\s?[0-9]\s?[0-9]\s?[0-9]$"
 
 CONTACT_SUBSTRINGS = [
     "contact",
@@ -86,7 +84,10 @@ def scrape_website(page, website_url, company_name):
                 path = parsed_url.path
 
                 # If URL does not contain any contact substrings, skip
-                if not any([substr in path for substr in CONTACT_SUBSTRINGS]):
+                if (
+                    not any([substr in path for substr in CONTACT_SUBSTRINGS])
+                    or "stopcontact" in path.lower()
+                ):
                     continue
 
             print(f"[{company}] Scraping {site} at depth {depth}")
