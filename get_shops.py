@@ -1,7 +1,8 @@
 from urllib.parse import urlparse
 import random
 import time
-import pandas as pd
+import datetime
+import csv
 from playwright.sync_api import sync_playwright
 
 # Google search URL
@@ -15,6 +16,12 @@ TECHNOLOGIES = [
     "Magento",
     "Lightspeed",
 ]
+
+date_str = datetime.datetime.today().strftime("%Y-%m-%d")
+data_file_str = f"data/leads_{date_str}.csv"
+
+with open(data_file_str, "w") as data_file:
+    data_file.write("product,website\n")
 
 
 # Function to perform Google search
@@ -47,9 +54,18 @@ def google_search(page, product):
                 # Parse URL to find origin
                 parsed_url = urlparse(website_text)
 
-                # See if domain is .nl
-                if parsed_url.netloc.endswith(".nl"):
-                    result.append(website_text)
+                if not parsed_url.netloc.endswith(
+                    ".nl"
+                ) and not parsed_url.netloc.endswith(".com"):
+                    continue
+
+                if website_text in result:
+                    continue
+
+                result.append(website_text)
+
+                with open(data_file_str, "a") as data_file:
+                    data_file.write(f"{product},{website_text}\n")
 
             page_count += 1
         except Exception as e:
@@ -69,9 +85,6 @@ with open("producten.txt", "r") as file:
 # Remove duplicates
 products = list(set(products))
 
-# Get leads
-leads = []
-
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     context = browser.new_context(
@@ -89,9 +102,4 @@ with sync_playwright() as p:
         # Random sleep to avoid being blocked
         time.sleep(random.uniform(2, 5))
 
-        # Append results to leads list
-        leads.extend([{"product": product, "website": link} for link in links])
-
-# Write leads to CSV
-leads_df = pd.DataFrame(leads)
-leads_df.to_csv("data/leads.csv", index=False)
+    browser.close()

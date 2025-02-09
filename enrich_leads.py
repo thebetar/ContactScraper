@@ -1,10 +1,13 @@
+import datetime
 import re
+import csv
 from urllib.parse import urlparse
-import pandas as pd
 from playwright.sync_api import sync_playwright
 
 EMAIL_REGEX = r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+"
-PHONE_REGEX = r"(?:\+31\s?|0)(6\d{8}|\d{1,2}[-\s]?\d{6,7})"
+PHONE_REGEX = (
+    r"(?:\+31|0031|0)(6(?:[-.\s]?\d{2}){4}|[1-9]\d{1,2}(?:[-.\s]?\d{2,3}){2,3})"
+)
 
 CONTACT_SUBSTRINGS = [
     "contact",
@@ -21,14 +24,16 @@ CONTACT_SUBSTRINGS = [
 ]
 
 
-def check_fast_search(total_emails, base_url, pages_scanned):
-    parsed_url = urlparse(base_url)
-    domain = parsed_url.netloc
+date_str = datetime.datetime.today().strftime("%Y-%m-%d")
+email_file_str = f"data/email_{date_str}.csv"
+phone_file_str = f"data/phone_{date_str}.csv"
 
-    # Filter by emails with domain name
-    domain_emails = [email for email in total_emails if domain in email]
 
-    return len(domain_emails) > 10 or pages_scanned > 20
+with open(email_file_str, "w") as data_file:
+    data_file.write("company,site,page,email\n")
+
+with open(phone_file_str, "w") as data_file:
+    data_file.write("company,site,page,phone\n")
 
 
 def check_break_condition(total_emails, total_phone, base_url):
@@ -38,184 +43,162 @@ def check_break_condition(total_emails, total_phone, base_url):
     # Filter by emails with domain name
     domain_emails = [email for email in total_emails if domain in email]
 
-    return len(domain_emails) > 20 and len(total_phone) > 5
+    return len(domain_emails) > 12 and len(total_phone) > 6
 
 
-def get_site_contact_info(
-    leads_df: pd.DataFrame, website_column: str, company_column: str
-):
-    email_log_file = open("data/email-log.csv", "a")
-    phone_log_file = open("data/phone-log.csv", "a")
+def scrape_website(page, website_url, company_name):
+    start_url = website_url
+    company = company_name
 
-    email_result_list = []
-    phone_result_list = []
+    # Remove https from URL
+    start_url = start_url.replace("https://", "")
+    start_url = start_url.replace("http://", "")
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        context = browser.new_context()
-        page = context.new_page()
+    depth = 0
+    pages_scanned = 0
 
-        def scrape_website(row):
-            index = row.name
-            start_url = row[website_column]
-            company = row[company_column]
+    sites_to_scrape = [start_url]
+    total_emails = []
+    total_phone = []
 
-            # Remove https from URL
-            start_url = start_url.replace("https://", "")
-            start_url = start_url.replace("http://", "")
+    scrape_history = []
 
-            depth = 0
-            pages_scanned = 0
+    while depth < 3:
+        # Find all the links on the page
+        new_sites = []
 
-            sites_to_scrape = [start_url]
-            total_emails = []
-            total_phone = []
+        # For all pages at depth
+        for site in sites_to_scrape:
+            scrape_history.append(site)
 
-            scrape_history = []
+            # If navigated to different website, skip
+            if not start_url in site:
+                continue
 
-            while depth < 3:
-                # Find all the links on the page
-                new_sites = []
+            # Playwright needs URL with http or https
+            if not site.startswith("http"):
+                site = "https://" + site
 
-                # For all pages at depth
-                for site in sites_to_scrape:
-                    scrape_history.append(site)
+            # After 20 pages scanned check more strictly
+            if pages_scanned > 20:
+                # Check URL more strictly to be contact page
+                parsed_url = urlparse(site)
+                path = parsed_url.path
 
-                    # If navigated to different website, skip
-                    if not start_url in site:
+                # If URL does not contain any contact substrings, skip
+                if not any([substr in path for substr in CONTACT_SUBSTRINGS]):
+                    continue
+
+            print(f"[{company}] Scraping {site} at depth {depth}")
+            print(
+                f"[{company}] Found {len(total_emails)} emails and {len(total_phone)} phone numbers"
+            )
+
+            try:
+                page.goto(site)
+                page.wait_for_load_state("networkidle")
+
+                pages_scanned += 1
+
+                links = page.query_selector_all("a")
+
+                # For all links on the page
+                for link in links:
+                    href = link.get_attribute("href")
+
+                    if (
+                        not href
+                        or href == "#"
+                        or href == "/"
+                        or href == "javascript:void(0)"
+                        or "mailto:" in href
+                    ):
                         continue
 
-                    # Playwright needs URL with http or https
-                    if not site.startswith("http"):
-                        site = "https://" + site
-
-                    if check_fast_search(total_emails, start_url, pages_scanned):
-                        # Check URL more strictly to be contact page
-                        parsed_url = urlparse(site)
-                        path = parsed_url.path
-
-                        # If URL does not contain any contact substrings, skip
-                        if not any([substr in path for substr in CONTACT_SUBSTRINGS]):
+                    # If absolute path
+                    if href.startswith("http"):
+                        if href in scrape_history:
                             continue
 
-                    print(
-                        f"[{company}] Scraping {site} at depth {depth} ({index + 1} of {len(leads_df)})"
-                    )
-                    print(
-                        f"[{company}] Found {len(total_emails)} emails and {len(total_phone)} phone numbers"
-                    )
+                        new_sites.append(href)
+                    # If relative path
+                    else:
+                        new_site = start_url + href
 
-                    try:
-                        page.goto(site)
-                        page.wait_for_load_state("networkidle")
-
-                        pages_scanned += 1
-
-                        links = page.query_selector_all("a")
-
-                        # For all links on the page
-                        for link in links:
-                            href = link.get_attribute("href")
-
-                            if (
-                                not href
-                                or href == "#"
-                                or href == "/"
-                                or href == "javascript:void(0)"
-                                or "mailto:" in href
-                            ):
-                                continue
-
-                            # If absolute path
-                            if href.startswith("http"):
-                                if href in scrape_history:
-                                    continue
-
-                                new_sites.append(href)
-                            # If relative path
-                            else:
-                                new_site = start_url + href
-
-                                # Remove double slashes
-                                new_site = new_site.replace("//", "/").replace(
-                                    "https:/", "https://"
-                                )
-
-                                if new_site in scrape_history:
-                                    continue
-
-                                new_sites.append(new_site)
-
-                        # Find all emails
-                        text = page.inner_text("body")
-
-                        emails = re.findall(EMAIL_REGEX, text)
-                        total_emails.extend(
-                            [
-                                {"company": company, "site": site, "email": email}
-                                for email in emails
-                            ]
+                        # Remove double slashes
+                        new_site = new_site.replace("//", "/").replace(
+                            "https:/", "https://"
                         )
 
-                        # Find all Dutch phone numbers
-                        phone_numbers = re.findall(PHONE_REGEX, text)
-                        total_phone.extend(
-                            [
-                                {"company": company, "site": site, "phone": phone}
-                                for phone in phone_numbers
-                            ]
-                        )
+                        if new_site in scrape_history:
+                            continue
 
-                        # If total emails and phone numbers are more than 100, stop scraping
-                        if check_break_condition(total_emails, total_phone, start_url):
-                            break
-                    except Exception as e:
+                        new_sites.append(new_site)
+
+                # Find all emails
+                text = page.inner_text("body")
+
+                emails = re.findall(EMAIL_REGEX, text)
+
+                # Filter out duplicates
+                emails = list(set(emails))
+
+                for email in emails:
+                    if email in total_emails:
                         continue
 
-                sites_to_scrape = list(set(new_sites))
+                    total_emails.append(email)
+
+                    with open(email_file_str, "a") as data_file:
+                        data_file.write(f"{company},{start_url},{site},{email}\n")
+
+                # Find all Dutch phone numbers
+                phone_numbers = re.findall(PHONE_REGEX, text)
+
+                # Filter out duplicates
+                phone_numbers = list(set(phone_numbers))
+
+                for phone in phone_numbers:
+                    if phone in total_phone:
+                        continue
+
+                    total_phone.append(phone)
+
+                    with open(phone_file_str, "a") as data_file:
+                        data_file.write(f"{company},{start_url},{site},{phone}\n")
 
                 # If total emails and phone numbers are more than 100, stop scraping
                 if check_break_condition(total_emails, total_phone, start_url):
                     break
+            except Exception as e:
+                continue
 
-                depth += 1
+        sites_to_scrape = list(set(new_sites))
 
-            email_result_list.extend(total_emails)
-            phone_result_list.extend(total_phone)
+        # If total emails and phone numbers are more than 100, stop scraping
+        if check_break_condition(total_emails, total_phone, start_url):
+            break
 
-            # Write to log file
-            for email in total_emails:
-                email_log_file.write(
-                    f"{email['company']},{email['site']},{email['email']}\n"
-                )
-
-            for phone in total_phone:
-                phone_log_file.write(
-                    f"{phone['company']},{phone['site']},{phone['phone']}\n"
-                )
-
-        leads_df.apply(scrape_website, axis=1)
-
-    return email_result_list, phone_result_list
+        depth += 1
 
 
 if __name__ == "__main__":
-    website_df = pd.read_csv("data/lead-list.csv")
-    website_df = website_df
+    companies = csv.DictReader(open("data/lead-list.csv"))
 
-    # Get contact info
-    email_result_list, phone_result_list = get_site_contact_info(
-        leads_df=website_df, website_column="Website", company_column="Company"
-    )
-    email_df = pd.DataFrame(email_result_list)
-    phone_df = pd.DataFrame(phone_result_list)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+            locale="nl-NL",
+        )
+        page = browser.new_page()
 
-    # Remove duplicates
-    email_df = email_df.drop_duplicates(subset=["email"])
-    phone_df = phone_df.drop_duplicates(subset=["phone"])
+        for index, company in enumerate(companies):
+            company_name = company["Company"]
+            website_url = company["Website"]
 
-    # Save to CSV
-    email_df.to_csv("data/emails.csv", index=False)
-    phone_df.to_csv("data/phones.csv", index=False)
+            scrape_website(page, website_url, company_name)
+
+            print(f"[{company_name}] Done! ({index + 1})")
 
     print("Done!")
