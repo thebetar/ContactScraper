@@ -120,7 +120,6 @@ def get_shops():
             locale="nl-NL",
         )
         page = context.new_page()
-        page.wait_for_timeout(600000)
 
         # Iterate over all products
         for index, product in enumerate(products):
