@@ -1,4 +1,3 @@
-
 2 in 1 shampoo en wasgel voor baby
 2-taktbenzine
 3d-bril
@@ -4643,8 +4642,9 @@ soldeerpistool
 soldeerpunt
 soldeerstation
 soldeertin
-solid state drive (extern)
-solid state drive (intern)
+solid state drive
+solid state Drive
+SSD
 sondevoeding
 sonische tandenborstel
 sorteerbak

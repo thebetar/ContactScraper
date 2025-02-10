@@ -2,7 +2,7 @@ from urllib.parse import urlparse
 import random
 import time
 import datetime
-import csv
+import os
 from playwright.sync_api import sync_playwright
 
 # Google search URL
@@ -21,13 +21,38 @@ FORBIDDEN_SHOPS = [
 ]
 
 
+def get_product_list():
+    products = []
+
+    # Get kind of products
+    with open("modules/generate_leads/products.txt", "r") as file:
+        for line in file:
+            products.append(line.strip())
+
+    # Remove duplicates
+    products = list(set(products))
+
+    if os.path.exists("data/history/queried_products.txt"):
+        # Get already queried products
+        with open("data/history/queried_products.txt", "r") as f:
+            queried_products = [line.strip() for line in f]
+
+        # Remove queried products
+        products = [product for product in products if product not in queried_products]
+
+    return products
+
+
 def get_shops():
     date_str = datetime.datetime.today().strftime("%Y-%m-%d")
-    data_file_str = f"data/leads_{date_str}.csv"
+    data_file_str = f"data/shops_{date_str}.csv"
 
-    with open(data_file_str, "w") as data_file:
-        data_file.write("product,company,website\n")
+    # If file does not exist, create it
+    if not os.path.exists(data_file_str):
+        with open(data_file_str, "w") as data_file:
+            data_file.write("product,company,website\n")
 
+    # History to prevent double entries
     website_url_history = []
 
     # Function to perform Google search
@@ -67,7 +92,7 @@ def get_shops():
                     parsed_url = urlparse(website_url_text)
 
                     # Check if URL is forbidden
-                    if parsed_url.netloc in FORBIDDEN_SHOPS:
+                    if parsed_url.netloc.replace("www.", "") in FORBIDDEN_SHOPS:
                         continue
 
                     # Check if URL is not .nl or .com
@@ -80,7 +105,10 @@ def get_shops():
                     if website_url_text in website_url_history:
                         continue
 
+                    # Store website as result to prevent double entries
                     website_url_history.append(website_url_text)
+
+                    # Append to result
                     result.append(
                         {
                             "product": product,
@@ -89,28 +117,26 @@ def get_shops():
                         }
                     )
 
+                    # Write row for intermediary results
                     with open(data_file_str, "a") as data_file:
                         data_file.write(
                             f"{product},{website_name_text},{website_url_text}\n"
                         )
 
+                # Increase page count (step in bing search)
                 page_count += 1
             except Exception as e:
                 print(f"Error: {e}")
                 continue
 
+        # Write all found shops to history to prevent double searching
+        with open("data/history/queried_products.txt", "a") as f:
+            f.write(f"{product}\n")
+
         return result
 
     # Get all products
-    products = []
-
-    # Get kind of products
-    with open("products.txt", "r") as file:
-        for line in file:
-            products.append(line.strip())
-
-    # Remove duplicates
-    products = list(set(products))
+    products = get_product_list()
 
     # Start Playwright
     with sync_playwright() as p:
